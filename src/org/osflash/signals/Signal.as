@@ -17,6 +17,7 @@ package org.osflash.signals
 	{
 		protected var _valueClasses:Array;		// of Class
 		protected var listeners:Array;			// of Function
+		protected var overloadListeners:Array;			// of Function
 		protected var onceListeners:Dictionary;	// of Function
 		
 		/**
@@ -28,6 +29,7 @@ package org.osflash.signals
 		{
 			listeners = [];
 			onceListeners = new Dictionary();
+			overloadListeners = [];
 			if (!valueClasses) return;
 			
 			_valueClasses = valueClasses.concat();
@@ -56,6 +58,11 @@ package org.osflash.signals
 				throw new IllegalOperationError('You cannot addOnce() then add() the same listener without removing the relationship first.');
 		
 			createListenerRelationship(listener);
+		}
+		
+		public function overload(listener:Function, ...args):void
+		{
+			createOverloadListenerRelationship(listener, args);
 		}
 		
 		/** @inheritDoc */
@@ -93,36 +100,64 @@ package org.osflash.signals
 			}
 
 			//// Call listeners.
-			if (!listeners.length) return;
-			
-			//TODO: investigate performance of various approaches
-			
-			var listener:Function;
-			switch (valueObjects.length)
+			if (listeners.length)
 			{
-				case 0:
-					// Clone listeners array because add/remove may occur during the dispatch.
-					for each (listener in listeners.concat())
+			
+				//TODO: investigate performance of various approaches
+				
+				var listener:Function;
+				switch (valueObjects.length)
+				{
+					case 0:
+						// Clone listeners array because add/remove may occur during the dispatch.
+						for each (listener in listeners.concat())
+						{
+							if (onceListeners[listener]) remove(listener);
+							listener();
+						}
+						break;
+						
+					case 1:
+						for each (listener in listeners.concat())
+						{
+							if (onceListeners[listener]) remove(listener);
+							listener(valueObjects[0]);
+						}
+						break;
+						
+					default:
+						for each (listener in listeners.concat())
+						{
+							if (onceListeners[listener]) remove(listener);
+							listener.apply(null, valueObjects);
+						}
+				}
+			}
+			
+			if (overloadListeners.length)
+			{
+				var overloadListener:Object;
+				
+				for each (overloadListener in overloadListeners)
+				{
+					switch (overloadListener.args.length)
 					{
-						if (onceListeners[listener]) remove(listener);
-						listener();
+						case 0:
+							listener = overloadListener.listener;
+							listener();
+						break;
+						
+						//case 1:
+						//	listener = overloadListener.listener;
+						//	listener(overloadListener.args[0]);
+						//break;
+						
+						default:
+							listener = overloadListener.listener;
+							listener.apply(null, overloadListener.args);
+						
 					}
-					break;
-					
-				case 1:
-					for each (listener in listeners.concat())
-					{
-						if (onceListeners[listener]) remove(listener);
-						listener(valueObjects[0]);
-					}
-					break;
-					
-				default:
-					for each (listener in listeners.concat())
-					{
-						if (onceListeners[listener]) remove(listener);
-						listener.apply(null, valueObjects);
-					}
+				}
 			}
 		}
 		
@@ -148,6 +183,25 @@ package org.osflash.signals
 				
 			// Faster than push().
 			listeners[listeners.length] = listener;
+		}
+		
+		protected function createOverloadListenerRelationship(listener:Function, args:Array):void
+		{
+			trace("createOverloadListenerRelationship", listener, args);
+			
+				// If there are no previous listeners, add the first one as quickly as possible.
+			if (!overloadListeners.length)
+			{
+				overloadListeners[0] = {listener:listener, args:args};
+				return;
+			}
+			
+			// Don't add the same listener twice.
+			if (overloadListeners.indexOf(listener) >= 0)
+				return;
+				
+			// Faster than push().
+			overloadListeners[listeners.length] = {listener:listener, args:args};
 		}
 	}
 }

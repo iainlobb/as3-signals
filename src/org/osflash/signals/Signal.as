@@ -150,7 +150,7 @@ package org.osflash.signals
 						//case 1:
 						//	listener = overloadListener.listener;
 						//	listener(overloadListener.args[0]);
-						//break;
+						//break;//
 						
 						default:
 							listener = overloadListener.listener;
